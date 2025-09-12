@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<title>Sürpriz Sayfa</title>
+<style>
+body{margin:0;overflow:hidden;font-family:Arial,sans-serif;background:#111;position:relative;}
+#background{position:fixed;width:100%;height:100%;top:0;left:0;background-size:cover;background-position:center;filter:brightness(0.75);transition:background-image 0.5s ease-in-out;}
+.arrow{position:fixed;top:50%;transform:translateY(-50%);font-size:50px;color:white;text-shadow:1px 1px 5px black;cursor:pointer;user-select:none;z-index:10;}
+.left{left:20px;} .right{right:20px;}
+#playBtn{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);font-size:60px;color:white;cursor:pointer;z-index:15;opacity:0.7;background:transparent;border:none;}
+#textOverlay{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);color:white;font-size:28px;text-align:center;z-index:12;width:80%;}
+#songBox{position:fixed;left:20px;bottom:20px;z-index:20;background:rgba(0,0,0,0.5);color:white;padding:10px;border-radius:10px;font-size:14px;}
+#songBox label{cursor:pointer;display:block;margin-bottom:3px;}
+.heart, .star{position:absolute;pointer-events:none;z-index:5;transition:transform 0.2s, top 0.2s;}
+.heart svg, .star svg{width:100%;height:100%;fill:currentColor;filter:drop-shadow(0 0 2px currentColor);}
+</style>
+</head>
+<body>
+
+<div id="background"></div>
+<div class="arrow left" onclick="prevSlide()">&#10094;</div>
+<div class="arrow right" onclick="nextSlide()">&#10095;</div>
+<button id="playBtn">&#9658;</button>
+<div id="textOverlay"></div>
+<div id="songBox"></div>
+<audio id="bgMusic" loop></audio>
+
+<script>
+const slides = [
+    { photo: 'IMG_5026.JPG', songs: ['Wegh - Güldüğün Gün.mp3','ENES GÜNEŞ - UNUT DEDİN.mp3'], symbol: 'heart', text: '"Senin için savaşır, senin için beklerim."' },
+    { photo: 'maryy1.jpg', songs: ['Patron - Benden Bu Kadar.mp3','Şam - Sudan Pantolon.mp3'], symbol: 'star', text: '"And we will shine like stars forever."' }
+];
+let currentSlide = 0, canPlay = false, activeSymbols = [];
+
+const background = document.getElementById('background');
+const music = document.getElementById('bgMusic');
+const songBox = document.getElementById('songBox');
+const textOverlay = document.getElementById('textOverlay');
+const playBtn = document.getElementById('playBtn');
+
+let analyser, audioCtx, source;
+
+function initAudioAnalysis() {
+    if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        source = audioCtx.createMediaElementSource(music);
+        analyser = audioCtx.createAnalyser();
+        source.connect(analyser);
+        analyser.connect(audioCtx.destination);
+        analyser.fftSize = 64;
+        animateSymbols();
+    }
+}
+
+function shuffle(a) { 
+    for (let i = a.length - 1; i > 0; i--) { 
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]]; 
+    } 
+    return a; 
+}
+
+function populateSongs() {
+    songBox.innerHTML = '';
+    const shuffled = shuffle([...slides[currentSlide].songs]);
+    shuffled.forEach((s,i)=>{
+        const id='song'+i;
+        const label = document.createElement('label');
+        const songName = s.split('/').pop().replace('.mp3','');
+        label.innerHTML = `<input type="radio" name="song" id="${id}" ${i===0?'checked':''}> ${songName}`;
+        songBox.appendChild(label);
+        document.getElementById(id).addEventListener('change',()=>{
+            music.src = s;
+            if(canPlay) music.play();
+        });
+    });
+    music.src = shuffled[0];
+}
+
+function getColors(type){
+    return type==='heart'?['#ffffff','#ff0000','#000000']:['#ffff00','#000000'];
+}
+
+function createSymbols(){
+    const slide = slides[currentSlide];
+    activeSymbols.forEach(s=>s.remove());
+    activeSymbols = [];
+    const total=30;
+    const heartSvg=`<svg viewBox="0 0 32 32"><path d="M16 29s-13-8.1-13-17c0-4.4 3.6-8 8-8 2.6 0 5 1.3 6.5 3.3C21 5.3 23.4 4 26 4c4.4 0 8 3.6 8 8 0 8.9-13 17-13 17z"/></svg>`;
+    const starSvg=`<svg viewBox="0 0 24 24"><polygon points="12,2 15,9 22,9 16,14 18,21 12,17 6,21 8,14 2,9 9,9"/></svg>`;
+
+    for(let i=0;i<total;i++){
+        const s=document.createElement('div');
+        s.className=slide.symbol;
+        s.style.width='12px'; s.style.height='12px';
+        s.style.left=Math.random()*window.innerWidth+'px';
+        s.style.top=(-50-Math.random()*300)+'px';
+        s.style.transition='transform 0.2s, top 0.2s';
+        const colors=getColors(slide.symbol);
+        s.dataset.color = colors[Math.floor(Math.random()*colors.length)];
+        s.style.color = s.dataset.color;
+        s.innerHTML = slide.symbol==='heart'?heartSvg:starSvg;
+        document.body.appendChild(s);
+        activeSymbols.push(s);
+    }
+}
+
+function animateSymbols(){
+    if(!analyser || music.paused){requestAnimationFrame(animateSymbols); return;}
+    const freq=new Uint8Array(analyser.frequencyBinCount);
+    analyser.getByteFrequencyData(freq);
+    let bass=freq[1]/256;
+    activeSymbols.forEach(s=>{
+        let t=parseFloat(s.style.top);
+        t+=0.3+Math.random()*(1+bass*2);
+        if(t>window.innerHeight){
+            t=(-50-Math.random()*300);
+            s.style.top=t+'px';
+            s.style.left=Math.random()*window.innerWidth+'px';
+        } else s.style.top=t+'px';
+        s.style.transform=`scale(${1+bass*0.3}) rotate(${Math.random()*360}deg)`;
+    });
+    requestAnimationFrame(animateSymbols);
+}
+
+function showSlide(i){
+    if(i<0)i=slides.length-1;
+    if(i>=slides.length)i=0;
+    currentSlide=i;
+    background.style.backgroundImage=`url('${slides[currentSlide].photo}')`;
+    textOverlay.innerText=slides[currentSlide].text;
+    playBtn.style.display='block';
+    canPlay=false;
+    music.pause();
+    music.currentTime=0;
+    populateSongs();
+    createSymbols();
+}
+
+playBtn.addEventListener('click',()=>{
+    initAudioAnalysis();
+    canPlay=true;
+    music.play();
+    playBtn.style.display='none';
+});
+
+function nextSlide(){showSlide(currentSlide+1);}
+function prevSlide(){showSlide(currentSlide-1);}
+
+window.onload = ()=>{showSlide(0);};
+</script>
+
+</body>
+</html>
